@@ -42,8 +42,11 @@
     .card:active { transform: scale(.985); }
     .card .name { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
     .card .summary { font-size: 13px; color: var(--sub); margin-top: 5px; line-height: 1.45; }
-    .card .meta { font-size: 11px; color: var(--sub); margin-top: 8px; display: flex; gap: 8px; align-items: center; }
+    .card .meta { font-size: 11px; color: var(--sub); margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .tag { background: #fdeee6; color: var(--accent-ink); border-radius: 6px; padding: 2px 7px; font-weight: 700; }
+    .card.has-photo { position: relative; padding-right: 102px; }
+    .card .thumb { position: absolute; top: 15px; right: 16px; width: 74px; height: 74px; border-radius: 12px; object-fit: cover; background: var(--line); }
+    .md-hero { width: 100%; max-height: 320px; object-fit: cover; border-radius: 14px; margin: 4px 0 6px; display: block; }
     .empty-msg { text-align: center; color: var(--sub); padding: 56px 24px; font-size: 14px; line-height: 1.7; }
 
     /* 返回列 */
@@ -99,6 +102,17 @@
     const coll = id => DATA.collections.find(c => c.id === id);
     const item = (c, iid) => c && c.items.find(x => x.id === iid);
 
+    // 一張卡片(有照片就右側縮圖)
+    function cardHTML(it) {
+      const body = `<div class="card-body">
+          <div class="name">${esc(it.name)}</div>
+          ${it.summary ? `<div class="summary">${esc(it.summary)}</div>` : ''}
+          <div class="meta"><span class="tag">${esc(it.sub)}</span>${it.source ? `<span>${esc(it.source)}</span>` : ''}</div>
+        </div>`;
+      const thumb = it.photo ? `<img class="thumb" src="${encodeURI(it.photo)}" alt="">` : '';
+      return `<div class="card ${it.photo ? 'has-photo' : ''}" data-i="${esc(it.id)}">${body}${thumb}</div>`;
+    }
+
     // ===== 三個畫面 =====
     function viewHome() {
       const total = DATA.collections.reduce((s, c) => s + c.count, 0);
@@ -126,12 +140,7 @@
         list.forEach(it => (groups[it.sub] = groups[it.sub] || []).push(it));
         body = Object.keys(groups).map(sub =>
           `<div class="group-label">${esc(sub)}</div>` +
-          groups[sub].map(it =>
-            `<div class="card" data-i="${esc(it.id)}">
-              <div class="name">${esc(it.name)}</div>
-              ${it.summary ? `<div class="summary">${esc(it.summary)}</div>` : ''}
-              <div class="meta"><span class="tag">${esc(it.sub)}</span>${it.source ? `<span>${esc(it.source)}</span>` : ''}</div>
-            </div>`).join('')).join('');
+          groups[sub].map(cardHTML).join('')).join('');
       }
       const searchBox = c.items.length ? `<div class="search"><input id="q" type="search" placeholder="在「${esc(c.id)}」裡搜尋…" autocomplete="off" value="${esc(query || '')}"></div>` : '';
       return `<div class="bar"><button class="back" data-back="home">‹</button><div class="t">${c.emoji} ${esc(c.id)}</div></div>
@@ -141,8 +150,9 @@
     function viewDetail(cid, iid) {
       const c = coll(cid); const it = item(c, iid);
       if (!it) return viewCollection(cid, '');
+      const hero = it.photo ? `<img class="md-hero" src="${encodeURI(it.photo)}" alt="">` : '';
       return `<div class="bar"><button class="back" data-back="c/${esc(cid)}">‹</button><div class="t">${esc(it.name)}</div></div>
-        <div class="md">${renderMd(it.body)}${it.source ? `<div class="src">來源:${esc(it.source)}</div>` : ''}</div>`;
+        <div class="md">${hero}${renderMd(it.body)}${it.source ? `<div class="src">來源:${esc(it.source)}</div>` : ''}</div>`;
     }
 
     // ===== 路由 =====
@@ -182,12 +192,7 @@
       list.forEach(it => (groups[it.sub] = groups[it.sub] || []).push(it));
       const html = Object.keys(groups).map(sub =>
         `<div class="group-label">${esc(sub)}</div>` +
-        groups[sub].map(it =>
-          `<div class="card" data-i="${esc(it.id)}">
-            <div class="name">${esc(it.name)}</div>
-            ${it.summary ? `<div class="summary">${esc(it.summary)}</div>` : ''}
-            <div class="meta"><span class="tag">${esc(it.sub)}</span>${it.source ? `<span>${esc(it.source)}</span>` : ''}</div>
-          </div>`).join('')).join('');
+        groups[sub].map(cardHTML).join('')).join('');
       content.insertAdjacentHTML('beforeend', html);
       content.querySelectorAll('.card').forEach(el => el.onclick = () => { location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i); });
     }

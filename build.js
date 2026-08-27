@@ -57,12 +57,20 @@ function readCollection(c) {
     items = files.map(f => {
       const raw = fs.readFileSync(path.join(dir, f), 'utf8');
       const { meta, body } = parseFrontmatter(raw);
+      const id = path.basename(f, '.md');
+      // 照片:photos/<主題>/<id>.jpg|png 存在就掛上(相對路徑)
+      let photo = '';
+      for (const ext of ['jpg', 'jpeg', 'png']) {
+        const rel = path.join('photos', c.dir, id + '.' + ext);
+        if (fs.existsSync(path.join(__dirname, rel))) { photo = rel; break; }
+      }
       return {
-        id: path.basename(f, '.md'),
-        name: extractTitle(body) || path.basename(f, '.md'),
+        id,
+        name: extractTitle(body) || id,
         sub: subcat(meta, c.subField),
         source: meta['來源'] || '',
         summary: meta.summary || '',
+        photo,
         body,
       };
     });
