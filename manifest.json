@@ -1,6 +1,6 @@
 {
-  "name": "食譜",
-  "short_name": "食譜",
+  "name": "收藏庫",
+  "short_name": "收藏庫",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#fbf6f0",
