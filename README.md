@@ -37,6 +37,22 @@ cd recipe-app && python3 -m http.server 8899
 ```
 開 http://localhost:8899/index.html
 
+## 編輯模式(排序/分類,跨裝置同步)
+
+進入任一主題 → 右上「編輯」→ 每張卡片有 ↑↓(調同分類內順序)與下拉(換分類/新分類);分類標題的 ↑↓ 調分類顯示順序。改動**自動儲存**。
+
+- 不動原始 `.md`,只疊一層「排序/分類覆蓋」設定,存在 GAS 後端(跨裝置一致);後端連不上時退回本機 localStorage。
+- 後端:`apps-script.gs`(已用 clasp 部署,專案在 `recipe-library-gas/`);前端設定在 `js/api.js`(已填好網址+密鑰)。後端只用 Script Property 存一包 JSON,不碰其他資料、免授權。
+- 加新內容(/inbox)後,新項目會照 `.md` 的分類排在最後,不影響既有排序。
+
+## 檔案(補充)
+
+| 檔案 | 作用 |
+|---|---|
+| `js/api.js` | 後端串接設定(LIB_API_URL / LIB_API_TOKEN)+ 讀寫覆蓋層 |
+| `apps-script.gs` | GAS 後端(存排序/分類覆蓋層);正本專案在 `recipe-library-gas/` |
+| `photos/<主題>/<id>.jpg` | 各項目商品照(build.js 自動掛上) |
+
 ## 部署
 
 已在 GitHub Pages(`wda7953/recipe-app`,main 根目錄)。push 即更新。

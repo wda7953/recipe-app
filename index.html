@@ -18,6 +18,7 @@
       --line: #efe4d8; --accent: #E8825A; --accent-ink: #c9552e; --warn: #b98900;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { overflow-x: hidden; max-width: 100%; }
     body { font-family: "Noto Sans TC", system-ui, sans-serif; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
     .header { position: sticky; top: 0; z-index: 10; background: var(--bg); padding: calc(16px + env(safe-area-inset-top)) 18px 10px; }
     .header h1 { font-size: 24px; font-weight: 900; letter-spacing: -.02em; }
@@ -42,7 +43,9 @@
     .card:active { transform: scale(.985); }
     .card .name { font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
     .card .summary { font-size: 13px; color: var(--sub); margin-top: 5px; line-height: 1.45; }
-    .card .meta { font-size: 11px; color: var(--sub); margin-top: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .card .meta { font-size: 11px; color: var(--sub); margin-top: 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .card .meta > span { overflow-wrap: anywhere; min-width: 0; }
+    .card .name, .card .summary { overflow-wrap: anywhere; }
     .tag { background: #fdeee6; color: var(--accent-ink); border-radius: 6px; padding: 2px 7px; font-weight: 700; }
     .card.has-photo { position: relative; padding-right: 102px; }
     .card .thumb { position: absolute; top: 15px; right: 16px; width: 74px; height: 74px; border-radius: 12px; object-fit: cover; background: var(--line); }
@@ -52,7 +55,16 @@
     /* 返回列 */
     .bar { position: sticky; top: 0; z-index: 10; background: var(--bg); display: flex; align-items: center; gap: 10px; padding: calc(12px + env(safe-area-inset-top)) 16px 10px; }
     .back { border: 1.5px solid var(--line); background: #fff; border-radius: 10px; width: 38px; height: 38px; font-size: 20px; cursor: pointer; color: var(--ink); flex: 0 0 auto; line-height: 1; }
-    .bar .t { font-size: 18px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar .t { font-size: 18px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .editbtn { flex: 0 0 auto; border: 1.5px solid var(--line); background: #fff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--accent-ink); cursor: pointer; }
+    .editbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .group-label.edit { display: flex; align-items: center; justify-content: space-between; }
+    .catmv button, .editrow .mv { border: 1.5px solid var(--line); background: #fff; border-radius: 8px; width: 34px; height: 32px; font-size: 15px; cursor: pointer; color: var(--ink); }
+    .catmv { display: flex; gap: 6px; }
+    .card.editing { cursor: default; }
+    .editrow { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+    .editrow .catsel { flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 8px; font-size: 13px; font-family: inherit; background: #fff; color: var(--ink); }
+    .edit-hint { font-size: 12px; color: var(--sub); padding: 2px 6px 8px; line-height: 1.5; }
 
     /* 詳情 markdown */
     .md { padding: 8px 18px 60px; line-height: 1.65; }
@@ -72,10 +84,12 @@
 <body>
   <div id="app"><div class="empty-msg">載入中…</div></div>
 
+  <script src="js/api.js"></script>
   <script>
     let DATA = { collections: [] };
 
     function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+    function trunc(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n) + '…' : s; }
 
     // 極簡 markdown → HTML
     function renderMd(md) {
@@ -99,16 +113,79 @@
       return html;
     }
 
+    let OV = {};            // 排序/分類覆蓋層(來自後端或本機)
+    let editMode = false;
     const coll = id => DATA.collections.find(c => c.id === id);
     const item = (c, iid) => c && c.items.find(x => x.id === iid);
 
-    // 一張卡片(有照片就右側縮圖)
-    function cardHTML(it) {
+    // ===== 覆蓋層合併 =====
+    function ovc(cid) { const o = OV[cid] = OV[cid] || {}; o.itemCat = o.itemCat || {}; o.order = o.order || {}; o.catOrder = o.catOrder || []; return o; }
+    function effCat(cid, it) { const o = OV[cid]; return (o && o.itemCat && o.itemCat[it.id]) || it.sub; }
+    function allCats(cid, c) { const s = []; c.items.forEach(it => { const k = effCat(cid, it); if (s.indexOf(k) < 0) s.push(k); }); ovc(cid).catOrder.forEach(k => { if (s.indexOf(k) < 0) s.push(k); }); return s; }
+    // 依覆蓋層把 list 分組排序 → { cats:[...], groups:{cat:[items]} }
+    function buildGroups(cid, list) {
+      const o = ovc(cid), groups = {};
+      list.forEach(it => { const cat = effCat(cid, it); (groups[cat] = groups[cat] || []).push(it); });
+      const cats = [];
+      o.catOrder.forEach(c => { if (groups[c]) cats.push(c); });
+      Object.keys(groups).forEach(c => { if (cats.indexOf(c) < 0) cats.push(c); });
+      cats.forEach(cat => {
+        const ord = o.order[cat] || [];
+        groups[cat].sort((a, b) => {
+          let ia = ord.indexOf(a.id), ib = ord.indexOf(b.id);
+          if (ia < 0) ia = 1e9; if (ib < 0) ib = 1e9;
+          return ia !== ib ? ia - ib : a.name.localeCompare(b.name, 'zh-Hant');
+        });
+      });
+      return { cats, groups };
+    }
+
+    // ===== 編輯動作(改 OV → 存 → 重繪)=====
+    function persist() { LIB.save(OV); }
+    function reEdit(cid) { render(); }
+    function moveItem(cid, cat, id, dir) {
+      const o = ovc(cid);
+      const items = coll(cid).items.filter(it => effCat(cid, it) === cat);
+      const arr = buildGroups(cid, items).groups[cat].map(x => x.id);
+      const i = arr.indexOf(id), j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return;
+      arr.splice(j, 0, arr.splice(i, 1)[0]);
+      o.order[cat] = arr; persist(); reEdit(cid);
+    }
+    function moveCat(cid, cat, dir) {
+      const o = ovc(cid), arr = buildGroups(cid, coll(cid).items).cats.slice();
+      const i = arr.indexOf(cat), j = i + dir;
+      if (i < 0 || j < 0 || j >= arr.length) return;
+      arr.splice(j, 0, arr.splice(i, 1)[0]);
+      o.catOrder = arr; persist(); reEdit(cid);
+    }
+    function changeCat(cid, id, newCat) {
+      const o = ovc(cid), it = item(coll(cid), id), oldCat = effCat(cid, it);
+      if (!newCat || newCat === oldCat) return;
+      o.itemCat[id] = newCat;
+      if (o.order[oldCat]) o.order[oldCat] = o.order[oldCat].filter(x => x !== id);
+      o.order[newCat] = (o.order[newCat] || []).filter(x => x !== id); o.order[newCat].push(id);
+      if (o.catOrder.indexOf(newCat) < 0) o.catOrder.push(newCat);
+      persist(); reEdit(cid);
+    }
+
+    // 一張卡片(edit=true 時顯示排序/改分類控制)
+    function cardHTML(it, cid, edit) {
       const body = `<div class="card-body">
           <div class="name">${esc(it.name)}</div>
           ${it.summary ? `<div class="summary">${esc(it.summary)}</div>` : ''}
-          <div class="meta"><span class="tag">${esc(it.sub)}</span>${it.source ? `<span>${esc(it.source)}</span>` : ''}</div>
+          <div class="meta"><span class="tag">${esc(edit ? effCat(cid, it) : it.sub)}</span>${it.source ? `<span>${esc(trunc(it.source, 18))}</span>` : ''}</div>
         </div>`;
+      if (edit) {
+        const cur = effCat(cid, it);
+        const opts = allCats(cid, coll(cid)).map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('') + `<option value="__new__">＋ 新分類…</option>`;
+        const ctrl = `<div class="editrow">
+            <button class="mv" data-act="up" data-i="${esc(it.id)}" data-cat="${esc(cur)}">↑</button>
+            <button class="mv" data-act="down" data-i="${esc(it.id)}" data-cat="${esc(cur)}">↓</button>
+            <select class="catsel" data-i="${esc(it.id)}">${opts}</select>
+          </div>`;
+        return `<div class="card editing">${body}${ctrl}</div>`;
+      }
       const thumb = it.photo ? `<img class="thumb" src="${encodeURI(it.photo)}" alt="">` : '';
       return `<div class="card ${it.photo ? 'has-photo' : ''}" data-i="${esc(it.id)}">${body}${thumb}</div>`;
     }
@@ -125,26 +202,39 @@
         <div class="content"><div class="home-grid">${cards}</div></div>`;
     }
 
+    // 一個分類的區塊(edit 時分類標題有上下箭頭)
+    function groupHTML(cid, cat, items, edit) {
+      const head = edit
+        ? `<div class="group-label edit"><span>${esc(cat)}</span><span class="catmv"><button data-catact="up" data-cat="${esc(cat)}">↑</button><button data-catact="down" data-cat="${esc(cat)}">↓</button></span></div>`
+        : `<div class="group-label">${esc(cat)}</div>`;
+      return head + items.map(it => cardHTML(it, cid, edit)).join('');
+    }
+
     function viewCollection(cid, query) {
       const c = coll(cid);
       if (!c) return viewHome();
+      const editable = c.items.length > 0;
+      const editBtn = editable ? `<button class="editbtn ${editMode ? 'on' : ''}" id="editToggle">${editMode ? '完成' : '編輯'}</button>` : '';
+      const bar = `<div class="bar"><button class="back" data-back="home">‹</button><div class="t">${c.emoji} ${esc(c.id)}</div>${editBtn}</div>`;
+      if (!c.items.length) {
+        return bar + `<div class="content"><div class="empty-msg">這個主題還沒有內容 🕊️<br>把相關的圖片傳進 LINE,<br>再跟 Claude 說「處理收件匣」就會進來。</div></div>`;
+      }
+      if (editMode) {
+        const { cats, groups } = buildGroups(cid, c.items);
+        const body = cats.map(cat => groupHTML(cid, cat, groups[cat], true)).join('');
+        return bar + `<div class="content"><div class="edit-hint">編輯中:↑↓ 調順序、下拉可換分類;分類標題的 ↑↓ 調分類順序。改動自動儲存。</div>${body}</div>`;
+      }
       const q = (query || '').trim().toLowerCase();
       const list = c.items.filter(it => !q || (it.name + it.summary + it.body).toLowerCase().includes(q));
       let body;
-      if (!c.items.length) {
-        body = `<div class="empty-msg">這個主題還沒有內容 🕊️<br>把相關的圖片傳進 LINE,<br>再跟 Claude 說「處理收件匣」就會進來。</div>`;
-      } else if (!list.length) {
+      if (!list.length) {
         body = `<div class="empty-msg">找不到符合的內容</div>`;
       } else {
-        const groups = {};
-        list.forEach(it => (groups[it.sub] = groups[it.sub] || []).push(it));
-        body = Object.keys(groups).map(sub =>
-          `<div class="group-label">${esc(sub)}</div>` +
-          groups[sub].map(cardHTML).join('')).join('');
+        const { cats, groups } = buildGroups(cid, list);
+        body = cats.map(cat => groupHTML(cid, cat, groups[cat], false)).join('');
       }
-      const searchBox = c.items.length ? `<div class="search"><input id="q" type="search" placeholder="在「${esc(c.id)}」裡搜尋…" autocomplete="off" value="${esc(query || '')}"></div>` : '';
-      return `<div class="bar"><button class="back" data-back="home">‹</button><div class="t">${c.emoji} ${esc(c.id)}</div></div>
-        <div class="content">${searchBox}${body}</div>`;
+      const searchBox = `<div class="search"><input id="q" type="search" placeholder="在「${esc(c.id)}」裡搜尋…" autocomplete="off" value="${esc(query || '')}"></div>`;
+      return bar + `<div class="content">${searchBox}${body}</div>`;
     }
 
     function viewDetail(cid, iid) {
@@ -159,22 +249,35 @@
     function render() {
       const app = document.getElementById('app');
       const h = location.hash.replace(/^#/, '');
-      let html, scroll = true;
-      let m;
+      let html, m;
+      const inColl = /^c\//.test(h);
+      if (!inColl) editMode = false;   // 離開主題頁就退出編輯
       if ((m = h.match(/^i\/([^/]+)\/(.+)$/))) html = viewDetail(decodeURIComponent(m[1]), decodeURIComponent(m[2]));
       else if ((m = h.match(/^c\/(.+)$/))) html = viewCollection(decodeURIComponent(m[1]), sessionQuery);
       else html = viewHome();
       app.innerHTML = html;
+      const cid = inColl ? decodeURIComponent((h.match(/^c\/(.+)$/) || [])[1]) : null;
 
-      app.querySelectorAll('.coll-card').forEach(el => el.onclick = () => { sessionQuery = ''; location.hash = 'c/' + encodeURIComponent(el.dataset.c); });
-      app.querySelectorAll('.card').forEach(el => el.onclick = () => {
-        const cid = (location.hash.match(/^#c\/(.+)$/) || [])[1];
-        location.hash = 'i/' + cid + '/' + encodeURIComponent(el.dataset.i);
-      });
-      app.querySelectorAll('.back').forEach(el => el.onclick = () => { sessionQuery = ''; location.hash = el.dataset.back === 'home' ? '' : el.dataset.back; });
-      const qi = document.getElementById('q');
-      if (qi) qi.oninput = e => { sessionQuery = e.target.value; const c = (location.hash.match(/^#c\/(.+)$/) || [])[1]; renderListOnly(decodeURIComponent(c), sessionQuery); };
-      if (scroll) window.scrollTo(0, 0);
+      app.querySelectorAll('.coll-card').forEach(el => el.onclick = () => { sessionQuery = ''; editMode = false; location.hash = 'c/' + encodeURIComponent(el.dataset.c); });
+      app.querySelectorAll('.back').forEach(el => el.onclick = () => { sessionQuery = ''; editMode = false; location.hash = el.dataset.back === 'home' ? '' : el.dataset.back; });
+
+      const et = document.getElementById('editToggle');
+      if (et) et.onclick = () => { editMode = !editMode; sessionQuery = ''; render(); };
+
+      if (editMode && cid) {
+        app.querySelectorAll('.editrow .mv').forEach(el => el.onclick = () => moveItem(cid, el.dataset.cat, el.dataset.i, el.dataset.act === 'up' ? -1 : 1));
+        app.querySelectorAll('.catmv button').forEach(el => el.onclick = () => moveCat(cid, el.dataset.cat, el.dataset.catact === 'up' ? -1 : 1));
+        app.querySelectorAll('.catsel').forEach(el => el.onchange = () => {
+          let v = el.value;
+          if (v === '__new__') { v = (prompt('新分類名稱?') || '').trim(); if (!v) { render(); return; } }
+          changeCat(cid, el.dataset.i, v);
+        });
+      } else {
+        app.querySelectorAll('.card').forEach(el => el.onclick = () => { location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i); });
+        const qi = document.getElementById('q');
+        if (qi) qi.oninput = e => { sessionQuery = e.target.value; renderListOnly(cid, sessionQuery); };
+      }
+      window.scrollTo(0, 0);
     }
     let sessionQuery = '';
 
@@ -184,24 +287,19 @@
       const content = document.querySelector('.content'); if (!content) return;
       const q = query.trim().toLowerCase();
       const list = c.items.filter(it => !q || (it.name + it.summary + it.body).toLowerCase().includes(q));
-      const old = content.querySelector('.group-label, .empty-msg');
-      // 移除舊清單（保留 search）
       Array.from(content.children).forEach(ch => { if (!ch.classList.contains('search')) ch.remove(); });
       if (!list.length) { content.insertAdjacentHTML('beforeend', `<div class="empty-msg">找不到符合的內容</div>`); return; }
-      const groups = {};
-      list.forEach(it => (groups[it.sub] = groups[it.sub] || []).push(it));
-      const html = Object.keys(groups).map(sub =>
-        `<div class="group-label">${esc(sub)}</div>` +
-        groups[sub].map(cardHTML).join('')).join('');
-      content.insertAdjacentHTML('beforeend', html);
+      const { cats, groups } = buildGroups(cid, list);
+      content.insertAdjacentHTML('beforeend', cats.map(cat => groupHTML(cid, cat, groups[cat], false)).join(''));
       content.querySelectorAll('.card').forEach(el => el.onclick = () => { location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i); });
     }
 
     window.addEventListener('hashchange', render);
 
-    fetch('data.json?v=' + Date.now())
-      .then(r => r.json())
-      .then(d => { DATA = d; render(); })
+    Promise.all([
+      fetch('data.json?v=' + Date.now()).then(r => r.json()),
+      LIB.load()
+    ]).then(([d, ov]) => { DATA = d; OV = ov || {}; render(); })
       .catch(e => { document.getElementById('app').innerHTML = '<div class="empty-msg">載入失敗:' + e.message + '</div>'; });
   </script>
 </body>
