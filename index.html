@@ -64,7 +64,18 @@
     .card.editing { cursor: default; }
     .editrow { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
     .editrow .catsel { flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 8px; font-size: 13px; font-family: inherit; background: #fff; color: var(--ink); }
+    .editrow.move { margin-top: 8px; }
+    .editrow.move .mvlbl { font-size: 12px; font-weight: 700; color: var(--sub); flex: 0 0 auto; }
+    .editrow.move .movecoll { flex: 1; min-width: 0; border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 8px; font-size: 13px; font-family: inherit; background: #fff8f4; color: var(--accent-ink); font-weight: 700; }
+    .editrow.photo .phprev { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: var(--line); flex: 0 0 auto; }
+    .editrow.photo .phprev.none { display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--sub); border: 1px dashed var(--line); }
+    .editrow.photo .photobtn { flex: 1; min-width: 0; border: 1.5px solid var(--accent); background: #fff; border-radius: 8px; padding: 8px; font-size: 13px; font-weight: 700; font-family: inherit; color: var(--accent-ink); cursor: pointer; }
+    .editrow.photo .photodel { flex: 0 0 auto; border: 1.5px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-family: inherit; color: var(--sub); cursor: pointer; }
     .edit-hint { font-size: 12px; color: var(--sub); padding: 2px 6px 8px; line-height: 1.5; }
+
+    /* 上傳提示 toast */
+    #toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(12px); background: rgba(58,42,32,.94); color: #fff; font-size: 13.5px; font-weight: 600; padding: 10px 18px; border-radius: 22px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100; max-width: 80%; text-align: center; }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     /* 詳情 markdown */
     .md { padding: 8px 18px 60px; line-height: 1.65; }
@@ -113,15 +124,38 @@
       return html;
     }
 
-    let OV = {};            // 排序/分類覆蓋層(來自後端或本機)
+    let OV = {};            // 排序/分類/跨主題覆蓋層(來自後端或本機)
     let editMode = false;
     const coll = id => DATA.collections.find(c => c.id === id);
-    const item = (c, iid) => c && c.items.find(x => x.id === iid);
+
+    // ===== 跨主題移動:記在 OV.__moves["原生主題␟id"] = { to, cat } =====
+    function moves() { return (OV.__moves = OV.__moves || {}); }
+    function mkey(cid, id) { return cid + '␟' + id; }
+    // 一則項目的目的地主題(移到的主題若不存在就退回原生)
+    function destOf(it) { const m = moves()[mkey(it._cid, it.id)]; return (m && m.to && coll(m.to)) ? m.to : it._cid; }
+    // 某主題的「有效」項目 = 所有原生項目中,目的地落在此主題者(含從別的主題移入的)
+    function effItems(cid) {
+      const out = [];
+      DATA.collections.forEach(c => c.items.forEach(it => { if (destOf(it) === cid) out.push(it); }));
+      return out;
+    }
+    const findItem = (cid, iid) => effItems(cid).find(x => x.id === iid);
+    const findNative = (cid, iid) => { const c = coll(cid); return c && c.items.find(x => x.id === iid); };
+
+    // ===== 照片:App 內上傳的(存 OV.__photos)優先,否則用 repo 靜態圖 =====
+    function ovPhoto(it) { const p = OV.__photos && OV.__photos[mkey(it._cid, it.id)]; return (p && p.id) ? p.id : ''; }
+    function effPhoto(it) { const id = ovPhoto(it); return id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w1200') : (it.photo || ''); }
 
     // ===== 覆蓋層合併 =====
     function ovc(cid) { const o = OV[cid] = OV[cid] || {}; o.itemCat = o.itemCat || {}; o.order = o.order || {}; o.catOrder = o.catOrder || []; return o; }
-    function effCat(cid, it) { const o = OV[cid]; return (o && o.itemCat && o.itemCat[it.id]) || it.sub; }
-    function allCats(cid, c) { const s = []; c.items.forEach(it => { const k = effCat(cid, it); if (s.indexOf(k) < 0) s.push(k); }); ovc(cid).catOrder.forEach(k => { if (s.indexOf(k) < 0) s.push(k); }); return s; }
+    function effCat(cid, it) {
+      const o = OV[cid];
+      if (o && o.itemCat && o.itemCat[it.id]) return o.itemCat[it.id];   // 此主題內手動改的分類優先
+      const m = moves()[mkey(it._cid, it.id)];
+      if (m && m.to === cid && m.cat) return m.cat;                       // 移入時帶的分類
+      return it.sub;
+    }
+    function allCats(cid) { const s = []; effItems(cid).forEach(it => { const k = effCat(cid, it); if (s.indexOf(k) < 0) s.push(k); }); ovc(cid).catOrder.forEach(k => { if (s.indexOf(k) < 0) s.push(k); }); return s; }
     // 依覆蓋層把 list 分組排序 → { cats:[...], groups:{cat:[items]} }
     function buildGroups(cid, list) {
       const o = ovc(cid), groups = {};
@@ -145,7 +179,7 @@
     function reEdit(cid) { render(); }
     function moveItem(cid, cat, id, dir) {
       const o = ovc(cid);
-      const items = coll(cid).items.filter(it => effCat(cid, it) === cat);
+      const items = effItems(cid).filter(it => effCat(cid, it) === cat);
       const arr = buildGroups(cid, items).groups[cat].map(x => x.id);
       const i = arr.indexOf(id), j = i + dir;
       if (i < 0 || j < 0 || j >= arr.length) return;
@@ -153,20 +187,92 @@
       o.order[cat] = arr; persist(); reEdit(cid);
     }
     function moveCat(cid, cat, dir) {
-      const o = ovc(cid), arr = buildGroups(cid, coll(cid).items).cats.slice();
+      const o = ovc(cid), arr = buildGroups(cid, effItems(cid)).cats.slice();
       const i = arr.indexOf(cat), j = i + dir;
       if (i < 0 || j < 0 || j >= arr.length) return;
       arr.splice(j, 0, arr.splice(i, 1)[0]);
       o.catOrder = arr; persist(); reEdit(cid);
     }
     function changeCat(cid, id, newCat) {
-      const o = ovc(cid), it = item(coll(cid), id), oldCat = effCat(cid, it);
+      const o = ovc(cid), it = findItem(cid, id), oldCat = effCat(cid, it);
       if (!newCat || newCat === oldCat) return;
       o.itemCat[id] = newCat;
       if (o.order[oldCat]) o.order[oldCat] = o.order[oldCat].filter(x => x !== id);
       o.order[newCat] = (o.order[newCat] || []).filter(x => x !== id); o.order[newCat].push(id);
       if (o.catOrder.indexOf(newCat) < 0) o.catOrder.push(newCat);
       persist(); reEdit(cid);
+    }
+    // 把一則從目前主題(curCid)移到別的主題(destCid);nc=原生主題,id=項目 id
+    function moveToCollection(curCid, nc, id, destCid) {
+      const m = moves(), key = mkey(nc, id);
+      if (destCid === nc) { delete m[key]; }                              // 移回原生主題 → 清掉紀錄
+      else { const it = findNative(nc, id); m[key] = { to: destCid, cat: (m[key] && m[key].cat) || (it ? it.sub : '其他') }; }
+      if (OV[curCid] && OV[curCid].itemCat) delete OV[curCid].itemCat[id]; // 清掉在舊主題內改過的分類覆蓋
+      persist(); render();                                                // 項目離開目前清單,整頁重繪
+    }
+
+    // ===== 照片上傳/移除 =====
+    // 手機挑圖 → canvas 壓縮 → 上傳後端(存 Drive)→ 輪詢後端拿到 fileId → 更新 OV.__photos
+    function pickPhoto(nc, id) {
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'image/*';
+      inp.onchange = async () => {
+        const file = inp.files && inp.files[0]; if (!file) return;
+        const key = mkey(nc, id);
+        try {
+          toast('壓縮中…', true);
+          const b64 = await compressToB64(file, 1400, 0.82);
+          toast('上傳中…', true);
+          await LIB.upload(b64, key, id + '.jpg', 'image/jpeg');   // fire-and-forget
+          const fid = await pollPhoto(key, 24000);                 // 後端存好後輪詢取 fileId
+          if (fid) {
+            (OV.__photos = OV.__photos || {})[key] = { id: fid };
+            try { localStorage.setItem('lib_ov', JSON.stringify(OV)); } catch (e) {}
+            toast('照片已更新 ✓'); render();
+          } else { toast('上傳可能還在處理,稍後下拉重整看看'); }
+        } catch (e) { toast('上傳失敗:' + e.message); }
+      };
+      inp.click();
+    }
+    // 輪詢後端,直到該則照片入帳(或逾時)
+    async function pollPhoto(key, ms) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        await new Promise(r => setTimeout(r, 1600));
+        try { const ov = await LIB.load(); if (ov.__photos && ov.__photos[key] && ov.__photos[key].id) { OV.__photos = ov.__photos; return ov.__photos[key].id; } } catch (e) {}
+      }
+      return '';
+    }
+    function removePhoto(nc, id) {
+      const key = mkey(nc, id);
+      if (OV.__photos) delete OV.__photos[key];
+      try { localStorage.setItem('lib_ov', JSON.stringify(OV)); } catch (e) {}
+      LIB.delPhoto(key);                                           // 後端也刪(fire-and-forget)
+      toast('已移除上傳的照片'); render();
+    }
+    // 縮到長邊 maxDim、輸出 JPEG,回傳 base64(不含 data: 前綴)
+    function compressToB64(file, maxDim, q) {
+      return new Promise((resolve, reject) => {
+        const img = new Image(), url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          let w = img.width, h = img.height;
+          if (w > maxDim || h > maxDim) { const s = maxDim / Math.max(w, h); w = Math.round(w * s); h = Math.round(h * s); }
+          const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(cv.toDataURL('image/jpeg', q).split(',')[1]);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('讀圖失敗')); };
+        img.src = url;
+      });
+    }
+    let _toastT;
+    function toast(msg, sticky) {
+      let t = document.getElementById('toast');
+      if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+      t.textContent = msg; t.classList.add('show');
+      clearTimeout(_toastT);
+      if (!sticky) _toastT = setTimeout(() => t.classList.remove('show'), 1800);
     }
 
     // 一張卡片(edit=true 時顯示排序/改分類控制)
@@ -178,25 +284,37 @@
         </div>`;
       if (edit) {
         const cur = effCat(cid, it);
-        const opts = allCats(cid, coll(cid)).map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('') + `<option value="__new__">＋ 新分類…</option>`;
+        const opts = allCats(cid).map(x => `<option value="${esc(x)}" ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('') + `<option value="__new__">＋ 新分類…</option>`;
+        const collOpts = DATA.collections.map(c => `<option value="${esc(c.id)}" ${c.id === cid ? 'selected' : ''}>${c.emoji} ${esc(c.id)}</option>`).join('');
         const ctrl = `<div class="editrow">
             <button class="mv" data-act="up" data-i="${esc(it.id)}" data-cat="${esc(cur)}">↑</button>
             <button class="mv" data-act="down" data-i="${esc(it.id)}" data-cat="${esc(cur)}">↓</button>
             <select class="catsel" data-i="${esc(it.id)}">${opts}</select>
+          </div>
+          <div class="editrow move">
+            <span class="mvlbl">移到主題</span>
+            <select class="movecoll" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">${collOpts}</select>
+          </div>
+          <div class="editrow photo">
+            ${effPhoto(it) ? `<img class="phprev" src="${encodeURI(effPhoto(it))}" alt="">` : '<span class="phprev none">無圖</span>'}
+            <button class="photobtn" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">${effPhoto(it) ? '換照片' : '＋ 照片'}</button>
+            ${ovPhoto(it) ? `<button class="photodel" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">移除</button>` : ''}
           </div>`;
         return `<div class="card editing">${body}${ctrl}</div>`;
       }
-      const thumb = it.photo ? `<img class="thumb" src="${encodeURI(it.photo)}" alt="">` : '';
-      return `<div class="card ${it.photo ? 'has-photo' : ''}" data-i="${esc(it.id)}">${body}${thumb}</div>`;
+      const ph = effPhoto(it);
+      const thumb = ph ? `<img class="thumb" src="${encodeURI(ph)}" alt="" loading="lazy">` : '';
+      return `<div class="card ${ph ? 'has-photo' : ''}" data-i="${esc(it.id)}">${body}${thumb}</div>`;
     }
 
     // ===== 三個畫面 =====
     function viewHome() {
-      const total = DATA.collections.reduce((s, c) => s + c.count, 0);
+      const counts = {}; DATA.collections.forEach(c => counts[c.id] = effItems(c.id).length);
+      const total = DATA.collections.reduce((s, c) => s + counts[c.id], 0);
       let cards = DATA.collections.map(c =>
-        `<div class="coll-card ${c.count ? '' : 'empty'}" data-c="${esc(c.id)}">
+        `<div class="coll-card ${counts[c.id] ? '' : 'empty'}" data-c="${esc(c.id)}">
           <div class="emoji">${c.emoji}</div>
-          <div><div class="name">${esc(c.id)}</div><div class="n">${c.count} 則</div></div>
+          <div><div class="name">${esc(c.id)}</div><div class="n">${counts[c.id]} 則</div></div>
         </div>`).join('');
       return `<div class="header"><h1>📚 收藏庫</h1><div class="count">共 ${total} 則・${DATA.collections.length} 個主題</div></div>
         <div class="content"><div class="home-grid">${cards}</div></div>`;
@@ -213,19 +331,20 @@
     function viewCollection(cid, query) {
       const c = coll(cid);
       if (!c) return viewHome();
-      const editable = c.items.length > 0;
+      const eff = effItems(cid);
+      const editable = eff.length > 0;
       const editBtn = editable ? `<button class="editbtn ${editMode ? 'on' : ''}" id="editToggle">${editMode ? '完成' : '編輯'}</button>` : '';
       const bar = `<div class="bar"><button class="back" data-back="home">‹</button><div class="t">${c.emoji} ${esc(c.id)}</div>${editBtn}</div>`;
-      if (!c.items.length) {
+      if (!eff.length) {
         return bar + `<div class="content"><div class="empty-msg">這個主題還沒有內容 🕊️<br>把相關的圖片傳進 LINE,<br>再跟 Claude 說「處理收件匣」就會進來。</div></div>`;
       }
       if (editMode) {
-        const { cats, groups } = buildGroups(cid, c.items);
+        const { cats, groups } = buildGroups(cid, eff);
         const body = cats.map(cat => groupHTML(cid, cat, groups[cat], true)).join('');
-        return bar + `<div class="content"><div class="edit-hint">編輯中:↑↓ 調順序、下拉可換分類;分類標題的 ↑↓ 調分類順序。改動自動儲存。</div>${body}</div>`;
+        return bar + `<div class="content"><div class="edit-hint">編輯中:↑↓ 調順序、下拉換分類、「移到主題」搬去別的主題、「換照片」上傳圖片;分類標題的 ↑↓ 調分類順序。改動自動儲存。</div>${body}</div>`;
       }
       const q = (query || '').trim().toLowerCase();
-      const list = c.items.filter(it => !q || (it.name + it.summary + it.body).toLowerCase().includes(q));
+      const list = eff.filter(it => !q || (it.name + it.summary + it.body).toLowerCase().includes(q));
       let body;
       if (!list.length) {
         body = `<div class="empty-msg">找不到符合的內容</div>`;
@@ -238,9 +357,10 @@
     }
 
     function viewDetail(cid, iid) {
-      const c = coll(cid); const it = item(c, iid);
+      const it = findItem(cid, iid);
       if (!it) return viewCollection(cid, '');
-      const hero = it.photo ? `<img class="md-hero" src="${encodeURI(it.photo)}" alt="">` : '';
+      const ph = effPhoto(it);
+      const hero = ph ? `<img class="md-hero" src="${encodeURI(ph)}" alt="">` : '';
       return `<div class="bar"><button class="back" data-back="c/${esc(cid)}">‹</button><div class="t">${esc(it.name)}</div></div>
         <div class="md">${hero}${renderMd(it.body)}${it.source ? `<div class="src">來源:${esc(it.source)}</div>` : ''}</div>`;
     }
@@ -272,6 +392,9 @@
           if (v === '__new__') { v = (prompt('新分類名稱?') || '').trim(); if (!v) { render(); return; } }
           changeCat(cid, el.dataset.i, v);
         });
+        app.querySelectorAll('.movecoll').forEach(el => el.onchange = () => moveToCollection(cid, el.dataset.nc, el.dataset.i, el.value));
+        app.querySelectorAll('.photobtn').forEach(el => el.onclick = () => pickPhoto(el.dataset.nc, el.dataset.i));
+        app.querySelectorAll('.photodel').forEach(el => el.onclick = () => removePhoto(el.dataset.nc, el.dataset.i));
       } else {
         app.querySelectorAll('.card').forEach(el => el.onclick = () => { location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i); });
         const qi = document.getElementById('q');
@@ -286,7 +409,7 @@
       const c = coll(cid); if (!c) return;
       const content = document.querySelector('.content'); if (!content) return;
       const q = query.trim().toLowerCase();
-      const list = c.items.filter(it => !q || (it.name + it.summary + it.body).toLowerCase().includes(q));
+      const list = effItems(cid).filter(it => !q || (it.name + it.summary + it.body).toLowerCase().includes(q));
       Array.from(content.children).forEach(ch => { if (!ch.classList.contains('search')) ch.remove(); });
       if (!list.length) { content.insertAdjacentHTML('beforeend', `<div class="empty-msg">找不到符合的內容</div>`); return; }
       const { cats, groups } = buildGroups(cid, list);
@@ -299,7 +422,7 @@
     Promise.all([
       fetch('data.json?v=' + Date.now()).then(r => r.json()),
       LIB.load()
-    ]).then(([d, ov]) => { DATA = d; OV = ov || {}; render(); })
+    ]).then(([d, ov]) => { DATA = d; DATA.collections.forEach(c => c.items.forEach(it => it._cid = c.id)); OV = ov || {}; render(); })
       .catch(e => { document.getElementById('app').innerHTML = '<div class="empty-msg">載入失敗:' + e.message + '</div>'; });
   </script>
 </body>
