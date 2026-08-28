@@ -49,7 +49,7 @@
     .tag { background: #fdeee6; color: var(--accent-ink); border-radius: 6px; padding: 2px 7px; font-weight: 700; }
     .card.has-photo { position: relative; padding-right: 102px; }
     .card .thumb { position: absolute; top: 15px; right: 16px; width: 74px; height: 74px; border-radius: 12px; object-fit: cover; background: var(--line); }
-    .md-hero { width: 100%; max-height: 320px; object-fit: cover; border-radius: 14px; margin: 4px 0 6px; display: block; }
+    .md-hero { width: 100%; max-height: 200px; object-fit: cover; border-radius: 14px; margin: 4px 0 6px; display: block; }
     .empty-msg { text-align: center; color: var(--sub); padding: 56px 24px; font-size: 14px; line-height: 1.7; }
 
     /* 返回列 */
@@ -70,7 +70,13 @@
     .editrow.photo .phprev { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: var(--line); flex: 0 0 auto; }
     .editrow.photo .phprev.none { display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--sub); border: 1px dashed var(--line); }
     .editrow.photo .photobtn { flex: 1; min-width: 0; border: 1.5px solid var(--accent); background: #fff; border-radius: 8px; padding: 8px; font-size: 13px; font-weight: 700; font-family: inherit; color: var(--accent-ink); cursor: pointer; }
-    .editrow.photo .photodel { flex: 0 0 auto; border: 1.5px solid var(--line); background: #fff; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-family: inherit; color: var(--sub); cursor: pointer; }
+    .editrow.photo .photodel { flex: 0 0 auto; border: 1.5px solid #e6b0a0; background: #fff; border-radius: 8px; padding: 8px 10px; font-size: 12px; font-family: inherit; color: #c0392b; font-weight: 700; cursor: pointer; }
+    .editrow.del { margin-top: 8px; }
+    .editrow.del .delcard { flex: 1; border: 1.5px solid #e6b0a0; background: #fff6f4; border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 700; font-family: inherit; color: #c0392b; cursor: pointer; }
+    .group-label.del-label { color: #c0392b; margin-top: 22px; }
+    .card.hidden-card { opacity: .6; background: #faf3f1; }
+    .card.hidden-card .editrow { margin-top: 8px; }
+    .card.hidden-card .restore { flex: 1; border: 1.5px solid var(--line); background: #fff; border-radius: 8px; padding: 8px; font-size: 13px; font-weight: 700; font-family: inherit; color: var(--accent-ink); cursor: pointer; }
     .edit-hint { font-size: 12px; color: var(--sub); padding: 2px 6px 8px; line-height: 1.5; }
 
     /* 上傳提示 toast */
@@ -133,18 +139,30 @@
     function mkey(cid, id) { return cid + '␟' + id; }
     // 一則項目的目的地主題(移到的主題若不存在就退回原生)
     function destOf(it) { const m = moves()[mkey(it._cid, it.id)]; return (m && m.to && coll(m.to)) ? m.to : it._cid; }
-    // 某主題的「有效」項目 = 所有原生項目中,目的地落在此主題者(含從別的主題移入的)
+    const isHidden = it => OV.__hidden && OV.__hidden[mkey(it._cid, it.id)];   // 被刪除(隱藏)的項目
+    // 某主題的「有效」項目 = 所有原生項目中,目的地落在此主題、且未被刪除者(含從別的主題移入的)
     function effItems(cid) {
       const out = [];
-      DATA.collections.forEach(c => c.items.forEach(it => { if (destOf(it) === cid) out.push(it); }));
+      DATA.collections.forEach(c => c.items.forEach(it => { if (!isHidden(it) && destOf(it) === cid) out.push(it); }));
+      return out;
+    }
+    // 被刪除、且原本會落在此主題的項目(給編輯模式「還原」用)
+    function hiddenItems(cid) {
+      const out = [];
+      DATA.collections.forEach(c => c.items.forEach(it => { if (isHidden(it) && destOf(it) === cid) out.push(it); }));
       return out;
     }
     const findItem = (cid, iid) => effItems(cid).find(x => x.id === iid);
     const findNative = (cid, iid) => { const c = coll(cid); return c && c.items.find(x => x.id === iid); };
 
-    // ===== 照片:App 內上傳的(存 OV.__photos)優先,否則用 repo 靜態圖 =====
+    // ===== 照片:上傳的(OV.__photos)最優先 → 使用者刪掉(OV.__nophoto,連靜態圖也蓋掉)→ repo 靜態圖 =====
     function ovPhoto(it) { const p = OV.__photos && OV.__photos[mkey(it._cid, it.id)]; return (p && p.id) ? p.id : ''; }
-    function effPhoto(it) { const id = ovPhoto(it); return id ? ('https://drive.google.com/thumbnail?id=' + id + '&sz=w1200') : (it.photo || ''); }
+    function effPhoto(it) {
+      const id = ovPhoto(it);
+      if (id) return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1200';
+      if (OV.__nophoto && OV.__nophoto[mkey(it._cid, it.id)]) return '';
+      return it.photo || '';
+    }
 
     // ===== 覆蓋層合併 =====
     function ovc(cid) { const o = OV[cid] = OV[cid] || {}; o.itemCat = o.itemCat || {}; o.order = o.order || {}; o.catOrder = o.catOrder || []; return o; }
@@ -227,6 +245,7 @@
           const fid = await pollPhoto(key, 24000);                 // 後端存好後輪詢取 fileId
           if (fid) {
             (OV.__photos = OV.__photos || {})[key] = { id: fid };
+            if (OV.__nophoto) delete OV.__nophoto[key];             // 上傳新圖 → 解除「刪照片」狀態
             try { localStorage.setItem('lib_ov', JSON.stringify(OV)); } catch (e) {}
             toast('照片已更新 ✓'); render();
           } else { toast('上傳可能還在處理,稍後下拉重整看看'); }
@@ -243,12 +262,23 @@
       }
       return '';
     }
+    // 刪照片:有上傳圖 → 刪 Drive 檔;有 repo 靜態圖 → 標記隱藏(App 內蓋掉,不動原檔)
     function removePhoto(nc, id) {
-      const key = mkey(nc, id);
-      if (OV.__photos) delete OV.__photos[key];
-      try { localStorage.setItem('lib_ov', JSON.stringify(OV)); } catch (e) {}
-      LIB.delPhoto(key);                                           // 後端也刪(fire-and-forget)
-      toast('已移除上傳的照片'); render();
+      const key = mkey(nc, id), it = findNative(nc, id);
+      if (OV.__photos && OV.__photos[key] && OV.__photos[key].id) { LIB.delPhoto(key); delete OV.__photos[key]; }
+      if (it && it.photo) { (OV.__nophoto = OV.__nophoto || {})[key] = 1; }   // 蓋掉靜態圖
+      persist(); toast('已刪除照片'); render();
+    }
+    // ===== 刪除整則(隱藏覆蓋層,不動 .md,可還原)=====
+    function deleteCard(nc, id) {
+      const it = findNative(nc, id);
+      if (!confirm('刪除「' + (it ? it.name : '這則') + '」?\n(編輯模式底部「已刪除」可還原)')) return;
+      (OV.__hidden = OV.__hidden || {})[mkey(nc, id)] = 1;
+      persist(); toast('已刪除'); render();
+    }
+    function restoreCard(nc, id) {
+      if (OV.__hidden) delete OV.__hidden[mkey(nc, id)];
+      persist(); toast('已還原'); render();
     }
     // 縮到長邊 maxDim、輸出 JPEG,回傳 base64(不含 data: 前綴)
     function compressToB64(file, maxDim, q) {
@@ -298,7 +328,10 @@
           <div class="editrow photo">
             ${effPhoto(it) ? `<img class="phprev" src="${encodeURI(effPhoto(it))}" alt="">` : '<span class="phprev none">無圖</span>'}
             <button class="photobtn" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">${effPhoto(it) ? '換照片' : '＋ 照片'}</button>
-            ${ovPhoto(it) ? `<button class="photodel" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">移除</button>` : ''}
+            ${effPhoto(it) ? `<button class="photodel" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">🗑 刪照片</button>` : ''}
+          </div>
+          <div class="editrow del">
+            <button class="delcard" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">🗑 刪除這則</button>
           </div>`;
         return `<div class="card editing">${body}${ctrl}</div>`;
       }
@@ -332,16 +365,19 @@
       const c = coll(cid);
       if (!c) return viewHome();
       const eff = effItems(cid);
-      const editable = eff.length > 0;
+      const hid = hiddenItems(cid);
+      const editable = eff.length > 0 || hid.length > 0;
       const editBtn = editable ? `<button class="editbtn ${editMode ? 'on' : ''}" id="editToggle">${editMode ? '完成' : '編輯'}</button>` : '';
       const bar = `<div class="bar"><button class="back" data-back="home">‹</button><div class="t">${c.emoji} ${esc(c.id)}</div>${editBtn}</div>`;
-      if (!eff.length) {
+      if (!eff.length && !hid.length) {
         return bar + `<div class="content"><div class="empty-msg">這個主題還沒有內容 🕊️<br>把相關的圖片傳進 LINE,<br>再跟 Claude 說「處理收件匣」就會進來。</div></div>`;
       }
       if (editMode) {
         const { cats, groups } = buildGroups(cid, eff);
         const body = cats.map(cat => groupHTML(cid, cat, groups[cat], true)).join('');
-        return bar + `<div class="content"><div class="edit-hint">編輯中:↑↓ 調順序、下拉換分類、「移到主題」搬去別的主題、「換照片」上傳圖片;分類標題的 ↑↓ 調分類順序。改動自動儲存。</div>${body}</div>`;
+        const hidHTML = hid.length ? `<div class="group-label del-label">🗑 已刪除（${hid.length}）</div>` + hid.map(it =>
+          `<div class="card editing hidden-card"><div class="card-body"><div class="name">${esc(it.name)}</div></div><div class="editrow"><button class="restore" data-i="${esc(it.id)}" data-nc="${esc(it._cid)}">↩︎ 還原</button></div></div>`).join('') : '';
+        return bar + `<div class="content"><div class="edit-hint">編輯中:↑↓ 調順序、下拉換分類、「移到主題」搬去別主題、「換照片」上傳、「刪除這則」移除;分類標題 ↑↓ 調分類順序。改動自動儲存。</div>${body}${hidHTML}</div>`;
       }
       const q = (query || '').trim().toLowerCase();
       const list = eff.filter(it => !q || (it.name + it.summary + it.body).toLowerCase().includes(q));
@@ -395,6 +431,8 @@
         app.querySelectorAll('.movecoll').forEach(el => el.onchange = () => moveToCollection(cid, el.dataset.nc, el.dataset.i, el.value));
         app.querySelectorAll('.photobtn').forEach(el => el.onclick = () => pickPhoto(el.dataset.nc, el.dataset.i));
         app.querySelectorAll('.photodel').forEach(el => el.onclick = () => removePhoto(el.dataset.nc, el.dataset.i));
+        app.querySelectorAll('.delcard').forEach(el => el.onclick = () => deleteCard(el.dataset.nc, el.dataset.i));
+        app.querySelectorAll('.restore').forEach(el => el.onclick = () => restoreCard(el.dataset.nc, el.dataset.i));
       } else {
         app.querySelectorAll('.card').forEach(el => el.onclick = () => { location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i); });
         const qi = document.getElementById('q');
