@@ -14,7 +14,7 @@ const OUT = path.join(__dirname, 'data.json');
 const COLLECTIONS = [
   { id: '食譜', emoji: '🍳', dir: '食譜', subField: '分類' },
   { id: '精油', emoji: '🌿', dir: '精油', subField: '分類' },
-  { id: '好物觀察家', emoji: '🛍️', dir: '好物觀察家', subField: '國家' },
+  { id: '網友推薦好物', emoji: '🛍️', dir: '網友推薦好物', subField: '國家' },
   { id: '收藏', emoji: '📌', dir: '收藏', subField: '標籤' },
   { id: '清單', emoji: '📋', dir: '清單', subField: '分類' },
 ];
