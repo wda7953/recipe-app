@@ -17,6 +17,7 @@ const COLLECTIONS = [
   { id: '網友推薦好物', emoji: '🛍️', dir: '網友推薦好物', subField: '國家' },
   { id: '收藏', emoji: '📌', dir: '收藏', subField: '標籤' },
   { id: '清單', emoji: '📋', dir: '清單', subField: '分類' },
+  { id: 'Pilates', emoji: '🧘', dir: 'pilates', subField: '分類' },
 ];
 
 // 解析簡化版 YAML frontmatter（key: value 單行；值可含引號；[a, b] 當陣列）
