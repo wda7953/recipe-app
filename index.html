@@ -47,6 +47,9 @@
     .card .meta > span { overflow-wrap: anywhere; min-width: 0; }
     .card .name, .card .summary { overflow-wrap: anywhere; }
     .tag { background: #fdeee6; color: var(--accent-ink); border-radius: 6px; padding: 2px 7px; font-weight: 700; }
+    .card.is-link { position: relative; }
+    .card.is-link .name::after { content: ''; }
+    .card .ext { position: absolute; top: 13px; right: 14px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; }
     .card.has-photo { position: relative; padding-right: 102px; }
     .card .thumb { position: absolute; top: 15px; right: 16px; width: 74px; height: 74px; border-radius: 12px; object-fit: cover; background: var(--line); }
     .md-hero { width: 100%; max-height: 70vh; object-fit: contain; background: var(--line); border-radius: 14px; margin: 4px 0 6px; display: block; }
@@ -342,7 +345,10 @@
       }
       const ph = effPhoto(it);
       const thumb = ph ? `<img class="thumb" src="${encodeURI(ph)}" alt="" loading="lazy">` : '';
-      return `<div class="card ${ph ? 'has-photo' : ''}" data-i="${esc(it.id)}">${body}${thumb}</div>`;
+      // 有連結的卡:點下去直接開,右上角標 ↗
+      const linkAttr = it.link ? ` data-link="${esc(it.link)}"` : '';
+      const linkBadge = it.link ? '<span class="ext">↗</span>' : '';
+      return `<div class="card ${ph ? 'has-photo' : ''} ${it.link ? 'is-link' : ''}" data-i="${esc(it.id)}"${linkAttr}>${body}${thumb}${linkBadge}</div>`;
     }
 
     // ===== 三個畫面 =====
@@ -439,7 +445,10 @@
         app.querySelectorAll('.delcard').forEach(el => el.onclick = () => deleteCard(el.dataset.nc, el.dataset.i));
         app.querySelectorAll('.restore').forEach(el => el.onclick = () => restoreCard(el.dataset.nc, el.dataset.i));
       } else {
-        app.querySelectorAll('.card').forEach(el => el.onclick = () => { location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i); });
+        app.querySelectorAll('.card').forEach(el => el.onclick = () => {
+          if (el.dataset.link) { window.open(el.dataset.link, '_blank', 'noopener'); return; }
+          location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i);
+        });
         const qi = document.getElementById('q');
         if (qi) qi.oninput = e => { sessionQuery = e.target.value; renderListOnly(cid, sessionQuery); };
       }
@@ -457,7 +466,10 @@
       if (!list.length) { content.insertAdjacentHTML('beforeend', `<div class="empty-msg">找不到符合的內容</div>`); return; }
       const { cats, groups } = buildGroups(cid, list);
       content.insertAdjacentHTML('beforeend', cats.map(cat => groupHTML(cid, cat, groups[cat], false)).join(''));
-      content.querySelectorAll('.card').forEach(el => el.onclick = () => { location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i); });
+      content.querySelectorAll('.card').forEach(el => el.onclick = () => {
+        if (el.dataset.link) { window.open(el.dataset.link, '_blank', 'noopener'); return; }
+        location.hash = 'i/' + encodeURIComponent(cid) + '/' + encodeURIComponent(el.dataset.i);
+      });
     }
 
     window.addEventListener('hashchange', render);

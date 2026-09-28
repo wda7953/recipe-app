@@ -65,6 +65,9 @@ function readCollection(c) {
         const rel = path.join('photos', c.dir, id + '.' + ext);
         if (fs.existsSync(path.join(__dirname, rel))) { photo = rel; break; }
       }
+      // 連結欄:有填 http(s) 網址時,卡片直接開此連結(不進詳情頁),給「清單」放 App 捷徑用
+      const linkRaw = String(meta['連結'] || meta['link'] || '').trim();
+      const link = /^https?:\/\//.test(linkRaw) ? linkRaw : '';
       return {
         id,
         name: extractTitle(body) || id,
@@ -72,6 +75,7 @@ function readCollection(c) {
         source: meta['來源'] || '',
         summary: meta.summary || '',
         photo,
+        link,
         body,
       };
     });
