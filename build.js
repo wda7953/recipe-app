@@ -14,8 +14,9 @@ const OUT = path.join(__dirname, 'data.json');
 const COLLECTIONS = [
   { id: '食譜', emoji: '🍳', dir: '食譜', subField: '分類' },
   { id: '精油', emoji: '🌿', dir: '精油', subField: '分類' },
-  { id: '出國必買', emoji: '🛍️', dir: '出國必買', subField: '國家' },
+  { id: '好物觀察家', emoji: '🛍️', dir: '好物觀察家', subField: '國家' },
   { id: '收藏', emoji: '📌', dir: '收藏', subField: '標籤' },
+  { id: '清單', emoji: '📋', dir: '清單', subField: '分類' },
 ];
 
 // 解析簡化版 YAML frontmatter（key: value 單行；值可含引號；[a, b] 當陣列）
