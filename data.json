@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-29",
+  "updated": "2026-10-01",
   "collections": [
     {
       "id": "食譜",
@@ -641,7 +641,7 @@
       "id": "網友推薦好物",
       "emoji": "🛍️",
       "subLabel": "國家",
-      "count": 11,
+      "count": 15,
       "items": [
         {
           "id": "日本-銀座GINZASIX起司蛋糕",
@@ -724,6 +724,16 @@
           "body": "# teabreak 南非國寶茶(Rooibos)\n\n- **品項**:teabreak No.314「Sonnige Zeiten」Rooibos(覆盆莓＋草莓風味的南非國寶茶)\n- **哪裡買**:德國 teabreak(散茶專賣)\n- **心得**:「給陽光時光,以及還想再陽光一點的人」的茶"
         },
         {
+          "id": "韓國-紅豆南瓜茶",
+          "name": "紅豆南瓜茶（호박팥차）",
+          "sub": "韓國",
+          "source": "viola_chi77(Threads)",
+          "summary": "韓國紅豆南瓜茶 호박팥차，推薦人的韓國第一名",
+          "photo": "photos/網友推薦好物/韓國-紅豆南瓜茶.jpg",
+          "link": "",
+          "body": "# 紅豆南瓜茶（호박팥차）\n\n- **品項**：紅豆南瓜茶 호박팥차（500mL，0 kcal）\n- **哪裡買**：韓國（常 1+1）；推薦人後來都直接在 쿠팡（Coupang）買一箱放家裡。不確定台灣買不買得到\n- **心得**：推薦人的「韓國第一名」；留言 jean5888 也說「這個真的好喝」"
+        },
+        {
           "id": "韓國-零油糙米餅",
           "name": "零油熱風烤糙米餅(현미)",
           "sub": "韓國",
@@ -732,6 +742,36 @@
           "photo": "photos/網友推薦好物/韓國-零油糙米餅.jpg",
           "link": "",
           "body": "# 零油熱風烤糙米餅(현미)\n\n- **品項**:기름제로 열풍에 구운 현미(零油・熱風烤糙米餅,HACCP)\n- **哪裡買**:韓國\n- **心得**:完全沒有調味,靠咀嚼帶出米的自然甜味"
+        },
+        {
+          "id": "韓國-BeautyofJoseon防曬乳與Numbuzin面膜",
+          "name": "Beauty of Joseon 防曬乳＋Numbuzin 數字面膜",
+          "sub": "韓國",
+          "source": "kama._.168(Threads)",
+          "summary": "韓國寶藏產品：Beauty of Joseon 防曬乳＋Numbuzin 數字面膜",
+          "photo": "photos/網友推薦好物/韓國-BeautyofJoseon防曬乳與Numbuzin面膜.jpg",
+          "link": "",
+          "body": "# Beauty of Joseon 防曬乳＋Numbuzin 數字面膜\n\n- **品項**：\n  - Beauty of Joseon 防曬乳（Relief Sun: Rice + Probiotics，SPF50+ PA++++）\n  - Numbuzin 數字面膜（2 號、5 號）\n- **哪裡買**：待補（截圖未寫）\n- **心得**：待補（截圖只列品項，無心得）\n\n> 來自 Threads《韓國超好用但台灣買不到的寶藏產品》貼文；照片只拍到 Beauty of Joseon 防曬乳。"
+        },
+        {
+          "id": "韓國-DrRejuAll護唇精華",
+          "name": "Dr.Reju-All PDRN 護唇精華",
+          "sub": "韓國",
+          "source": "nunanuna_studio(Threads)",
+          "summary": "韓國藥局買的 Dr.Reju-All PDRN 護唇精華，救嘴唇起皮乾裂",
+          "photo": "photos/網友推薦好物/韓國-DrRejuAll護唇精華.jpg",
+          "link": "",
+          "body": "# Dr.Reju-All PDRN 護唇精華\n\n- **品項**：Dr.Reju-All PDO Advanced PDRN Rejuvenating Lip Serum（唇部精華，10ml / 0.33 fl.oz，Formulated in Seoul，敏感肌適用）\n- **哪裡買**：韓國藥局\n- **心得**：\n  - 大推！不管用什麼大牌子唇膏都會起皮，早上跟睡前厚厚擦一層，不用再一直咬死皮，嘴唇變超光滑\n  - 推薦人在韓國零下每天嘴巴裂到流血，藥師推薦這條，回飯店擦完就睡，隔天好了一大半"
+        },
+        {
+          "id": "韓國-Fillimilli鋁製捲梳",
+          "name": "Fillimilli 鋁製捲梳 #40",
+          "sub": "韓國",
+          "source": "eating_0800(Threads)",
+          "summary": "Oliveyoung 買的 Fillimilli 鋁製捲梳 40mm，吹瀏海超挺",
+          "photo": "photos/網友推薦好物/韓國-Fillimilli鋁製捲梳.jpg",
+          "link": "",
+          "body": "# Fillimilli 鋁製捲梳 #40\n\n- **品項**：Fillimilli Aluminium Roll Brush #40（鋁製捲梳，頭徑 40mm）\n- **哪裡買**：Oliveyoung\n- **心得**：太好用，後來又買了其他不同大小；最常用 40mm 吹瀏海，超級挺！"
         },
         {
           "id": "韓國-Post蛋白棒",
